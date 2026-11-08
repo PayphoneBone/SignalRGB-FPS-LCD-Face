@@ -33,17 +33,32 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
     Write-Host "Removed task '$TaskName'"
 }
 
+# Stop the bridge, then PresentMon (it keeps its exe locked while running)
 Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
     Where-Object { $_.CommandLine -like '*fps_bridge.ps1*' } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-Get-Process -Name 'PresentMon*' -ErrorAction SilentlyContinue |
-    Where-Object { $_.Path -and $_.Path.StartsWith($InstallDir, [StringComparison]::OrdinalIgnoreCase) } |
-    Stop-Process -Force -ErrorAction SilentlyContinue
 
-if (Test-Path $InstallDir) { Remove-Item $InstallDir -Recurse -Force; Write-Host "Removed $InstallDir" }
+$pmProcs = Get-CimInstance Win32_Process -Filter "Name LIKE 'PresentMon%'" |
+    Where-Object { -not $_.ExecutablePath -or $_.ExecutablePath.StartsWith($InstallDir, [StringComparison]::OrdinalIgnoreCase) }
+foreach ($p in $pmProcs) {
+    Write-Host "Stopping PresentMon (PID $($p.ProcessId))"
+    Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+    Wait-Process -Id $p.ProcessId -Timeout 10 -ErrorAction SilentlyContinue
+}
+if (Test-Path $InstallDir) {
+    for ($i = 0; $i -lt 10 -and (Test-Path $InstallDir); $i++) {
+        Remove-Item $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path $InstallDir) { Start-Sleep -Seconds 1 }
+    }
+    if (Test-Path $InstallDir) {
+        Write-Host "Could not fully remove $InstallDir (a file is still in use). Reboot and delete it manually." -ForegroundColor Yellow
+    } else {
+        Write-Host "Removed $InstallDir"
+    }
+}
 
 if (-not $KeepSignalRGBFiles) {
-    foreach ($f in @("WhirlwindFX\Plugins\FPS_Bridge_Sensor.js", "WhirlwindFX\LCDFaces\FPS Native Sensor.html")) {
+    foreach ($f in @("WhirlwindFX\Plugins\FPS_Bridge_Sensor.js", "WhirlwindFX\LCDFaces\FPS Native Sensor.html", "WhirlwindFX\LCDFaces\fps.txt")) {
         $p = Join-Path $TargetDocuments $f
         if (Test-Path $p) { Remove-Item $p -Force; Write-Host "Removed $p" }
     }

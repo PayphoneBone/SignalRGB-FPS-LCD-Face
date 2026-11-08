@@ -69,6 +69,14 @@ Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
     Where-Object { $_.CommandLine -like '*fps_bridge.ps1*' } |
     ForEach-Object { Write-Host "Stopping running bridge (PID $($_.ProcessId))"; Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 
+# Stop a PresentMon left running by a previous bridge so its exe isn't locked
+Get-CimInstance Win32_Process -Filter "Name LIKE 'PresentMon%'" |
+    Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($InstallDir, [StringComparison]::OrdinalIgnoreCase) } |
+    ForEach-Object {
+        Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+        Wait-Process -Id $_.ProcessId -Timeout 10 -ErrorAction SilentlyContinue
+    }
+
 # ---- Bridge files ----
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 Copy-Item (Join-Path $repo 'bridge\fps_bridge.ps1')       $InstallDir -Force
