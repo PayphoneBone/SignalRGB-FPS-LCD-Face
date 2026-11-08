@@ -1,0 +1,61 @@
+<html lang="en">
+<head>
+<title>FPS Native Sensor</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta description="FPS sensor display. Displays FPS from the FPS Bridge plugin (Game FPS sensor)." />
+<meta publisher="Custom" />
+<meta background="true" />
+<meta property="targetSensor" label="FPS Sensor" type="sensor" default="Game FPS" />
+<meta property="fontSize" label="Font Size" type="number" min="12" max="300" default="35" />
+<meta property="textColor" label="Text Color" type="color" default="#c19c00" />
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;}
+body{display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;}
+#fps-native-value{font-size:35px;color:#c19c00;font-weight:bold;white-space:nowrap;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body><div id="fps-native-value">FPS --</div>
+<script>
+(function () {
+    var lastError = '';
+    function tick() {
+        var el = document.getElementById('fps-native-value');
+        if (!el) return;
+        var size = 35;
+        var color = '#c19c00';
+        try {
+            if (typeof fontSize !== 'undefined') {
+                var n = Number(fontSize);
+                if (isFinite(n) && n >= 12 && n <= 300) size = n;
+            }
+            if (typeof textColor === 'string' && /^#[0-9a-f]{6}$/i.test(textColor)) color = textColor;
+        } catch (e) {}
+        el.style.fontSize = size + 'px';
+        el.style.color = color;
+        try {
+            if (typeof engine === 'undefined' || typeof engine.getSensorValue !== 'function') {
+                el.textContent = 'FPS --';
+                return;
+            }
+            var selected = typeof targetSensor !== 'undefined' ? targetSensor : 'Game FPS';
+            var info = engine.getSensorValue(selected);
+            var value = info && info.value !== null && info.value !== '' ? Number(info.value) : NaN;
+            el.textContent = info && isFinite(value) && value >= 0 ? 'FPS ' + Math.round(value) : 'FPS --';
+            lastError = '';
+        } catch (e) {
+            el.textContent = 'FPS --';
+            var message = String(e);
+            if (message !== lastError) { lastError = message; console.log('FPS face: ' + message); }
+        }
+    }
+    window.onReady = tick;
+    window.ontargetSensorChanged = tick;
+    window.onfontSizeChanged = tick;
+    window.ontextColorChanged = tick;
+    tick();
+    setInterval(tick, 500);
+})();
+</script>
+</body>
+</html>
